@@ -1,0 +1,26 @@
+{
+  "id": "./",
+  "name": "XAU / NAS / XAG 外匯期貨倉位與風控計算機",
+  "short_name": "FX倉位計算",
+  "description": "支援 1:100 / 1:200 / 1:500 槓桿最大手數、XAU/NAS/XAG 合約規格、以損定倉與強平價試算",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "icons": [
+    {
+      "src": "./icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
