@@ -1,0 +1,1805 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#090d16" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="FX倉位計算" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>XAU / NAS / XAG 外匯期貨倉位與風控計算器 (PWA行動版)</title>
+  <link id="pwaManifestLink" rel="manifest" href="data:application/manifest+json,%7B%22name%22%3A%22XAU%20NAS%20XAG%20%E5%80%89%E4%BD%8D%E8%88%87%E9%A2%A8%E6%8E%A7%E8%A8%88%E7%AE%97%E6%A9%9F%22%2C%22short_name%22%3A%22FX%E5%80%89%E4%BD%8D%E8%A8%88%E7%AE%97%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23090d16%22%2C%22theme_color%22%3A%22%23f59e0b%22%7D" />
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Noto+Sans+TC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'Noto Sans TC', 'sans-serif'],
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace']
+          }
+        }
+      }
+    };
+  </script>
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      padding-bottom: calc(4.75rem + env(safe-area-inset-bottom, 0px));
+    }
+    @media (min-width: 1024px) {
+      body {
+        padding-bottom: 0;
+      }
+    }
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      opacity: 1;
+    }
+    .glass-card {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(14px);
+      border: 1px solid rgba(148, 163, 184, 0.14);
+    }
+    .safe-bottom {
+      padding-bottom: env(safe-area-inset-bottom, 0px);
+    }
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col selection:bg-amber-500 selection:text-slate-950">
+
+  <!-- Toast Notification -->
+  <div id="toastContainer" class="fixed top-16 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:bottom-6 sm:top-auto sm:right-6 z-50 flex flex-col gap-2 pointer-events-none w-[92vw] sm:w-auto max-w-sm"></div>
+
+  <!-- Top App Header (PWA style compact on mobile) -->
+  <header class="sticky top-0 z-30 border-b border-slate-800/90 bg-slate-950/95 backdrop-blur-md">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex items-center justify-between gap-2">
+      <div class="flex items-center gap-2.5 min-w-0">
+        <div class="w-9 h-9 sm:w-10 sm:h-10 shrink-0 rounded-xl bg-gradient-to-br from-amber-400 via-amber-500 to-orange-600 flex items-center justify-center shadow-md shadow-amber-500/20 text-slate-950 font-extrabold text-sm sm:text-base">
+          FX
+        </div>
+        <div class="truncate">
+          <div class="flex items-center gap-1.5">
+            <h1 class="text-sm sm:text-lg font-bold tracking-tight text-white truncate">外匯期貨倉位計算機</h1>
+            <span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+              PWA
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-400 hidden sm:block">支援 1:100 / 1:200 / 1:500 槓桿最大手數、以損定倉、強平價與手機主畫面安裝</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button id="btnContractHelp" type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/30 transition">
+          <span>❓ 合約規格說明</span>
+        </button>
+        <button id="btnShareUrl" type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition" title="分享參數連結">
+          <svg class="w-3.5 h-3.5 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/></svg>
+          <span class="hidden md:inline">分享參數連結</span>
+        </button>
+        <button id="btnCopySummary" type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-500 hover:bg-amber-400 text-slate-950 transition shadow-sm">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
+          <span>複製計算單</span>
+        </button>
+        <button id="btnDeployModal" type="button" class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 transition">
+          <span>免費公開網址教學</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Mobile Sticky Real-Time HUD Strip (Always visible while scrolling on phone!) -->
+    <div class="lg:hidden bg-slate-900/95 border-t border-slate-800/90 px-3 py-2">
+      <div class="grid grid-cols-4 gap-1.5 text-center">
+        <div class="bg-slate-950/90 rounded-lg py-1 px-1.5 border border-amber-500/30">
+          <div class="text-[10px] text-slate-400 truncate">滿倉最大(<span id="hudLevLabel">1:200</span>)</div>
+          <div id="hudMaxFull" class="text-sm font-extrabold font-mono text-amber-300">7.54手</div>
+        </div>
+        <div class="bg-slate-950/90 rounded-lg py-1 px-1.5 border border-emerald-500/30">
+          <div class="text-[10px] text-slate-400 truncate">安全上限(<span id="hudSafePct">30%</span>)</div>
+          <div id="hudMaxSafe" class="text-sm font-extrabold font-mono text-emerald-400">2.26手</div>
+        </div>
+        <div class="bg-slate-950/90 rounded-lg py-1 px-1.5 border border-sky-500/30">
+          <div class="text-[10px] text-slate-400 truncate">風控建議手數</div>
+          <div id="hudRiskLots" class="text-sm font-extrabold font-mono text-sky-400">0.13手</div>
+        </div>
+        <div class="bg-slate-950/90 rounded-lg py-1 px-1.5 border border-slate-800">
+          <div class="text-[10px] text-slate-400 truncate">1手保證金</div>
+          <div id="hudMargin1Lot" class="text-xs font-bold font-mono text-white mt-0.5">$1,325</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-4 sm:space-y-6">
+
+    <!-- Quick Instrument Selector Cards (Compact 3-col on mobile, full card on desktop) -->
+    <section aria-label="交易標的選擇">
+      <div class="grid grid-cols-3 gap-2 sm:gap-3.5">
+        <!-- XAU Card -->
+        <button type="button" data-symbol="XAU" class="symbol-card text-left p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border transition-all relative overflow-hidden group">
+          <div class="flex items-center justify-between mb-1 sm:mb-2">
+            <div class="flex items-center gap-1.5 sm:gap-2.5">
+              <span class="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-amber-500/20 border border-amber-400/40 text-amber-300 flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">Au</span>
+              <div class="min-w-0">
+                <div class="font-bold text-xs sm:text-base text-white flex items-center gap-1">
+                  <span>XAU</span>
+                  <span class="hidden sm:inline text-[11px] font-normal px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300">現貨黃金</span>
+                </div>
+                <p class="text-[10px] sm:text-xs text-slate-400 truncate">黃金 100oz/手</p>
+              </div>
+            </div>
+            <span class="symbol-active-badge hidden sm:inline-block px-2 py-0.5 text-[10px] rounded-full bg-amber-400 text-slate-950 font-bold">計算中</span>
+          </div>
+          <div class="mt-1 sm:mt-2 pt-1.5 sm:pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between text-[10px] sm:text-xs text-slate-300 gap-0.5">
+            <span>報價 <strong id="cardPriceXAU" class="font-mono text-amber-300">2,650.00</strong></span>
+            <span class="text-slate-400 sm:text-slate-300">跳$1=<strong class="font-mono">$100/手</strong></span>
+          </div>
+        </button>
+
+        <!-- NAS Card -->
+        <button type="button" data-symbol="NAS" class="symbol-card text-left p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border transition-all relative overflow-hidden group">
+          <div class="flex items-center justify-between mb-1 sm:mb-2">
+            <div class="flex items-center gap-1.5 sm:gap-2.5">
+              <span class="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-sky-500/20 border border-sky-400/40 text-sky-300 flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">NQ</span>
+              <div class="min-w-0">
+                <div class="font-bold text-xs sm:text-base text-white flex items-center gap-1">
+                  <span>NAS</span>
+                  <span class="hidden sm:inline text-[11px] font-normal px-1.5 py-0.5 rounded bg-sky-500/20 text-sky-300">那斯達克</span>
+                </div>
+                <p class="text-[10px] sm:text-xs text-slate-400 truncate" id="cardContractNAS">那指 1/10/20點</p>
+              </div>
+            </div>
+            <span class="symbol-active-badge hidden sm:inline-block px-2 py-0.5 text-[10px] rounded-full bg-sky-400 text-slate-950 font-bold">計算中</span>
+          </div>
+          <div class="mt-1 sm:mt-2 pt-1.5 sm:pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between text-[10px] sm:text-xs text-slate-300 gap-0.5">
+            <span>報價 <strong id="cardPriceNAS" class="font-mono text-sky-300">20,250.00</strong></span>
+            <span class="text-slate-400 sm:text-slate-300">跳1點=<strong id="cardTickNAS" class="font-mono">$1/手</strong></span>
+          </div>
+        </button>
+
+        <!-- XAG Card -->
+        <button type="button" data-symbol="XAG" class="symbol-card text-left p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border transition-all relative overflow-hidden group">
+          <div class="flex items-center justify-between mb-1 sm:mb-2">
+            <div class="flex items-center gap-1.5 sm:gap-2.5">
+              <span class="w-7 h-7 sm:w-9 sm:h-9 rounded-lg sm:rounded-xl bg-slate-400/20 border border-slate-300/40 text-slate-200 flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">Ag</span>
+              <div class="min-w-0">
+                <div class="font-bold text-xs sm:text-base text-white flex items-center gap-1">
+                  <span>XAG</span>
+                  <span class="hidden sm:inline text-[11px] font-normal px-1.5 py-0.5 rounded bg-slate-500/30 text-slate-200">現貨白銀</span>
+                </div>
+                <p class="text-[10px] sm:text-xs text-slate-400 truncate">白銀 5000oz/手</p>
+              </div>
+            </div>
+            <span class="symbol-active-badge hidden sm:inline-block px-2 py-0.5 text-[10px] rounded-full bg-slate-200 text-slate-950 font-bold">計算中</span>
+          </div>
+          <div class="mt-1 sm:mt-2 pt-1.5 sm:pt-2 border-t border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between text-[10px] sm:text-xs text-slate-300 gap-0.5">
+            <span>報價 <strong id="cardPriceXAG" class="font-mono text-slate-200">31.50</strong></span>
+            <span class="text-slate-400 sm:text-slate-300">跳$1=<strong class="font-mono">$5,000/手</strong></span>
+          </div>
+        </button>
+      </div>
+    </section>
+
+    <!-- Main Calculator Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+      <!-- Left Column: Inputs (5 cols) -->
+      <div class="lg:col-span-5 space-y-4 sm:space-y-5">
+
+        <!-- Section 1: Core Capital, Leverage & Contract Parameters -->
+        <div id="mobileTabMargin" class="mobile-section glass-card rounded-2xl p-4 sm:p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-amber-400 flex items-center gap-2">
+              <span>1. 資金、槓桿與合約規格</span>
+            </h2>
+            <button id="btnResetDefaults" type="button" class="text-xs px-2 py-1 rounded-lg bg-slate-800/80 text-slate-300 hover:text-white transition">
+              重設預設值
+            </button>
+          </div>
+
+          <!-- Account Balance with Mobile Steppers -->
+          <div>
+            <div class="flex justify-between items-center mb-1.5">
+              <label for="inputCapital" class="text-xs font-medium text-slate-300">帳戶總資金 (USD)</label>
+              <div class="flex gap-1">
+                <button type="button" data-cap="500" class="cap-preset px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">$500</button>
+                <button type="button" data-cap="1000" class="cap-preset px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">$1k</button>
+                <button type="button" data-cap="5000" class="cap-preset px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">$5k</button>
+                <button type="button" data-cap="10000" class="cap-preset px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">$10k</button>
+                <button type="button" data-cap="50000" class="cap-preset px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">$50k</button>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <button type="button" id="btnCapMinus" class="w-11 h-11 shrink-0 rounded-xl bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-white font-bold text-lg border border-slate-700 flex items-center justify-center">−</button>
+              <div class="relative flex-1">
+                <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 font-mono text-sm">$</span>
+                <input id="inputCapital" type="number" inputmode="decimal" min="10" step="100" value="10000" class="w-full pl-8 pr-3 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-amber-400 focus:outline-none font-mono text-base font-bold text-white" />
+              </div>
+              <button type="button" id="btnCapPlus" class="w-11 h-11 shrink-0 rounded-xl bg-slate-800 hover:bg-slate-700 active:bg-slate-600 text-white font-bold text-lg border border-slate-700 flex items-center justify-center">+</button>
+            </div>
+          </div>
+
+          <!-- Leverage Selector (1:100, 1:200, 1:500 + Custom) -->
+          <div>
+            <div class="flex justify-between items-center mb-1.5">
+              <label for="inputCustomLeverage" class="text-xs font-medium text-slate-300">帳戶槓桿倍數 (Leverage)</label>
+              <span class="text-xs font-mono text-amber-400" id="labelLeverageRatio">保證金比例 0.50%</span>
+            </div>
+            <div class="grid grid-cols-3 gap-2 mb-2">
+              <button type="button" data-lev="100" class="lev-btn py-3 px-3 rounded-xl font-mono text-sm font-bold border transition">
+                1 : 100
+              </button>
+              <button type="button" data-lev="200" class="lev-btn py-3 px-3 rounded-xl font-mono text-sm font-bold border transition">
+                1 : 200
+              </button>
+              <button type="button" data-lev="500" class="lev-btn py-3 px-3 rounded-xl font-mono text-sm font-bold border transition">
+                1 : 500
+              </button>
+            </div>
+            <div class="flex items-center justify-between gap-2 text-xs text-slate-400 bg-slate-900/50 px-3 py-2 rounded-xl border border-slate-800/80">
+              <span>自訂其他槓桿 1 :</span>
+              <div class="flex items-center gap-1.5">
+                <input id="inputCustomLeverage" type="number" inputmode="numeric" min="1" max="3000" step="10" value="200" class="w-24 px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-white font-mono text-xs text-center focus:border-amber-400 focus:outline-none" />
+                <button type="button" data-lev="1000" class="lev-quick px-2 py-1 rounded bg-slate-800 text-[11px] text-slate-300 hover:text-white">1:1000</button>
+                <button type="button" data-lev="2000" class="lev-quick px-2 py-1 rounded bg-slate-800 text-[11px] text-slate-300 hover:text-white">1:2000</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Current / Entry Price & Contract Size -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+            <div>
+              <label for="inputEntryPrice" class="block text-xs font-medium text-slate-300 mb-1.5">
+                當前 / 入場價格 (<span id="labelSymbolPrice" class="text-amber-300 font-bold">XAU/USD</span>)
+              </label>
+              <div class="flex items-center gap-1">
+                <button type="button" id="btnPriceMinus" class="w-9 h-10 shrink-0 rounded-xl bg-slate-800 active:bg-slate-700 text-slate-200 font-bold border border-slate-700">−</button>
+                <input id="inputEntryPrice" type="number" inputmode="decimal" min="0.01" step="0.01" value="2650.00" class="w-full px-3 py-2 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-amber-400 focus:outline-none font-mono text-sm font-bold text-white text-center" />
+                <button type="button" id="btnPricePlus" class="w-9 h-10 shrink-0 rounded-xl bg-slate-800 active:bg-slate-700 text-slate-200 font-bold border border-slate-700">+</button>
+              </div>
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between mb-1.5">
+                <label for="inputContractSize" class="text-xs font-medium text-slate-300">每手合約規格 (Contract Size)</label>
+                <button type="button" id="btnInlineContractInfo" class="text-[11px] text-sky-400 hover:underline font-medium">這是什麼？</button>
+              </div>
+              <input id="inputContractSize" type="number" inputmode="decimal" min="0.1" step="1" value="100" class="w-full px-3.5 py-2 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-amber-400 focus:outline-none font-mono text-sm font-bold text-white" />
+            </div>
+          </div>
+
+          <!-- Broker Contract Presets Helper + Clear Formula Breakdown -->
+          <div class="bg-slate-900/80 rounded-xl p-3 border border-slate-800 space-y-2">
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-semibold text-amber-300">點擊快速切換常見平台合約規格：</span>
+              <span id="contractValueFormula" class="text-[11px] font-mono text-slate-400">1手總值 = 報價 × 規格</span>
+            </div>
+            <div id="contractPresetButtons" class="flex flex-wrap gap-1.5"></div>
+            <p class="text-xs text-slate-300 leading-relaxed pt-1 border-t border-slate-800/80" id="contractPresetHint">
+              黃金 CFD 標準手為 100 盎司 (每手跳動 $1 = $100 USD)
+            </p>
+          </div>
+
+          <!-- Safe Margin Usage Limit Slider -->
+          <div class="pt-1">
+            <div class="flex justify-between items-center mb-1.5">
+              <label for="sliderMarginUsage" class="text-xs font-medium text-slate-300">安全保證金動用上限 (預留抗震空間)</label>
+              <span id="labelMarginUsage" class="text-xs font-mono font-bold text-emerald-400">30% ($3,000)</span>
+            </div>
+            <input id="sliderMarginUsage" type="range" min="5" max="100" step="5" value="30" class="w-full h-2 rounded-lg accent-amber-400 cursor-pointer" />
+            <div class="flex justify-between text-[11px] text-slate-400 mt-1">
+              <span>5% (極保守)</span>
+              <span>30% (穩健推薦)</span>
+              <span>50% (積極)</span>
+              <span>100% (滿倉極限)</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: Risk Management & Stop-Loss Position Sizing -->
+        <div id="mobileTabRisk" class="mobile-section glass-card rounded-2xl p-4 sm:p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-2.5">
+            <h2 class="text-sm font-bold uppercase tracking-wider text-sky-400 flex items-center gap-2">
+              <span>2. 以損定倉與止損止盈試算</span>
+            </h2>
+            <div class="inline-flex rounded-xl bg-slate-900 p-0.5 border border-slate-800">
+              <button type="button" id="btnDirLong" class="px-3 py-1 rounded-lg text-xs font-bold bg-emerald-500 text-slate-950 transition">做多 Long</button>
+              <button type="button" id="btnDirShort" class="px-3 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition">做空 Short</button>
+            </div>
+          </div>
+
+          <!-- Risk Percentage / Fixed Dollar -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <div class="flex justify-between items-center mb-1.5">
+                <label for="inputRiskPercent" class="text-xs font-medium text-slate-300">單筆承受風險 (%)</label>
+                <div class="flex gap-1">
+                  <button type="button" data-risk="1" class="risk-preset px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">1%</button>
+                  <button type="button" data-risk="2" class="risk-preset px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">2%</button>
+                  <button type="button" data-risk="3" class="risk-preset px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">3%</button>
+                  <button type="button" data-risk="5" class="risk-preset px-2 py-0.5 rounded text-[11px] bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700">5%</button>
+                </div>
+              </div>
+              <input id="inputRiskPercent" type="number" inputmode="decimal" min="0.1" max="100" step="0.5" value="2" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-sky-400 focus:outline-none font-mono text-sm font-bold text-white" />
+            </div>
+
+            <div>
+              <label for="inputRiskAmount" class="block text-xs font-medium text-slate-300 mb-1.5">單筆最大可虧損金額 ($ USD)</label>
+              <input id="inputRiskAmount" type="number" inputmode="decimal" min="1" step="10" value="200" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-sky-400 focus:outline-none font-mono text-sm font-bold text-white" />
+            </div>
+          </div>
+
+          <!-- Stop Loss & Take Profit -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <div class="flex justify-between items-center mb-1.5">
+                <label for="inputStopLoss" class="text-xs font-medium text-rose-300">止損價格 (Stop Loss)</label>
+                <span id="labelSlDistance" class="text-[11px] font-mono text-rose-400">距離 15.00 點</span>
+              </div>
+              <input id="inputStopLoss" type="number" inputmode="decimal" step="0.01" value="2635.00" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/90 border border-rose-500/40 focus:border-rose-400 focus:outline-none font-mono text-sm font-bold text-white" />
+            </div>
+
+            <div>
+              <div class="flex justify-between items-center mb-1.5">
+                <label for="inputTakeProfit" class="text-xs font-medium text-emerald-300">止盈價格 (Take Profit)</label>
+                <span id="labelTpDistance" class="text-[11px] font-mono text-emerald-400">距離 30.00 點</span>
+              </div>
+              <input id="inputTakeProfit" type="number" inputmode="decimal" step="0.01" value="2680.00" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900/90 border border-emerald-500/40 focus:border-emerald-400 focus:outline-none font-mono text-sm font-bold text-white" />
+            </div>
+          </div>
+
+          <!-- Planned Trade Lots & Broker Stop-Out Level -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-800/80">
+            <div>
+              <div class="flex justify-between items-center mb-1.5">
+                <label for="inputPlannedLots" class="text-xs font-medium text-amber-300">預計下單手數 (實測模擬)</label>
+                <button type="button" id="btnApplyRiskLots" class="text-xs font-semibold text-sky-400 hover:underline">套用風控手數</button>
+              </div>
+              <div class="flex items-center gap-1">
+                <button type="button" id="btnLotsMinus" class="w-9 h-10 shrink-0 rounded-xl bg-slate-800 active:bg-slate-700 text-slate-200 font-bold border border-slate-700">−</button>
+                <input id="inputPlannedLots" type="number" inputmode="decimal" min="0.01" step="0.01" value="0.13" class="w-full px-3 py-2 rounded-xl bg-slate-900/90 border border-amber-500/40 focus:border-amber-400 focus:outline-none font-mono text-sm font-bold text-white text-center" />
+                <button type="button" id="btnLotsPlus" class="w-9 h-10 shrink-0 rounded-xl bg-slate-800 active:bg-slate-700 text-slate-200 font-bold border border-slate-700">+</button>
+              </div>
+            </div>
+
+            <div>
+              <label for="selectStopOutLevel" class="block text-xs font-medium text-slate-300 mb-1.5">券商強平比例 (Stop-Out)</label>
+              <select id="selectStopOutLevel" class="w-full px-3 py-2.5 rounded-xl bg-slate-900/90 border border-slate-700 focus:border-sky-400 focus:outline-none text-sm text-white font-mono">
+                <option value="0">0% (零預付款強平)</option>
+                <option value="20" selected>20% (外匯券商標準)</option>
+                <option value="50">50% (部分券商/自營商)</option>
+                <option value="100">100% (期貨維持保證金)</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: Results & Analytics (7 cols) -->
+      <div class="lg:col-span-7 space-y-4 sm:space-y-5">
+
+        <!-- Hero KPI Cards: Max Lots & Margin Breakdown -->
+        <div id="mobileTabOverviewCards" class="mobile-section grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+          <!-- Card 1: Max Margin Lots (100% Full Capital) -->
+          <div class="glass-card rounded-2xl p-4 border-l-4 border-l-amber-400">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-slate-400">極限最大可開手數 (滿倉 100%)</span>
+              <span id="badgeCurrentLeverage" class="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-amber-500/20 text-amber-300">1:200</span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-2">
+              <span id="outMaxLotsFull" class="text-3xl font-extrabold font-mono text-white">7.54</span>
+              <span class="text-xs text-slate-400">標準手 (Lots)</span>
+            </div>
+            <p class="mt-1.5 text-xs text-slate-400">
+              最大購買力總值：<strong id="outMaxNotional" class="font-mono text-slate-200">$2,000,000</strong>
+            </p>
+          </div>
+
+          <!-- Card 2: Safe Margin Lots -->
+          <div class="glass-card rounded-2xl p-4 border-l-4 border-l-emerald-400">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-slate-400">安全建議最大手數 (<span id="outSafePctLabel">30%</span> 保證金)</span>
+              <span class="px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-500/20 text-emerald-300">安全水位</span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-2">
+              <span id="outMaxLotsSafe" class="text-3xl font-extrabold font-mono text-emerald-400">2.26</span>
+              <span class="text-xs text-slate-400">標準手 (Lots)</span>
+            </div>
+            <p class="mt-1.5 text-xs text-slate-400">
+              預留可用保證金：<strong id="outReservedFreeMargin" class="font-mono text-slate-200">$7,000.00</strong>
+            </p>
+          </div>
+
+          <!-- Card 3: Risk-Based Recommended Lots -->
+          <div class="glass-card rounded-2xl p-4 border-l-4 border-l-sky-400">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-slate-400">以損定倉建議手數 (止損風控)</span>
+              <span id="badgeRiskPct" class="px-2 py-0.5 rounded text-[11px] font-mono bg-sky-500/20 text-sky-300">風險 2.0%</span>
+            </div>
+            <div class="mt-2 flex items-baseline gap-2">
+              <span id="outRiskRecommendedLots" class="text-3xl font-extrabold font-mono text-sky-400">0.13</span>
+              <span class="text-xs text-slate-400">標準手 (Lots)</span>
+            </div>
+            <p class="mt-1.5 text-xs text-slate-400">
+              止損觸發虧損：<strong id="outRiskLossAmt" class="font-mono text-rose-300">-$195.00</strong>
+            </p>
+          </div>
+        </div>
+
+        <!-- Per-Lot Margin & Leverage Comparison Table (1:100 vs 1:200 vs 1:500) -->
+        <div id="mobileTabCompare" class="mobile-section glass-card rounded-2xl p-4 sm:p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                <span>各槓桿倍數 (1:100 / 1:200 / 1:500) 倉位與保證金對照表</span>
+              </h3>
+              <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+                標的：<strong id="tableSymLabel" class="text-amber-300">XAU/USD</strong> · 1手合約總價值：<strong id="outOneLotNotional" class="font-mono text-slate-200">$265,000.00</strong> · 價格每跳動 $1 損益：<strong id="outOneDollarMoveValue" class="font-mono text-slate-200">$100.00 / 手</strong>
+              </p>
+            </div>
+          </div>
+
+          <div class="overflow-x-auto -mx-2 px-2">
+            <table class="w-full text-left border-collapse text-xs sm:text-sm min-w-[460px]">
+              <thead>
+                <tr class="border-b border-slate-800 text-slate-400 text-xs">
+                  <th class="py-2.5 px-2.5 font-medium">槓桿倍數</th>
+                  <th class="py-2.5 px-2.5 font-medium">1 標準手保證金</th>
+                  <th class="py-2.5 px-2.5 font-medium">0.01 手保證金</th>
+                  <th class="py-2.5 px-2.5 font-medium">滿倉最大 (100%)</th>
+                  <th class="py-2.5 px-2.5 font-medium">安全上限 (<span id="thSafePct">30%</span>)</th>
+                  <th class="py-2.5 px-2.5 font-medium text-right">切換</th>
+                </tr>
+              </thead>
+              <tbody id="leverageComparisonBody" class="divide-y divide-slate-800/70 font-mono">
+                <!-- Populated dynamically via JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Planned Position Simulation & Liquidation / Risk-Reward Panel -->
+        <div id="mobileTabSimDiag" class="mobile-section glass-card rounded-2xl p-4 sm:p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+            <div>
+              <h3 class="text-sm font-bold text-white">實測下單部位診斷與強制平倉價 (Liquidation & R:R)</h3>
+              <p class="text-xs text-slate-400">根據「預計下單手數」即時模擬保證金水位、盈虧比與抗波動點數</p>
+            </div>
+            <div class="flex items-center gap-2">
+              <span id="statusHealthBadge" class="px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                倉位健康
+              </span>
+              <button id="btnAddToPortfolio" type="button" class="px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-500 hover:bg-sky-400 text-slate-950 transition">
+                + 加入多單模擬籃子
+              </button>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3">
+            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+              <div class="text-[11px] text-slate-400">所需已用保證金</div>
+              <div id="simUsedMargin" class="text-base font-bold font-mono text-white mt-0.5">$172.25</div>
+              <div id="simMarginPctOfCap" class="text-[11px] font-mono text-slate-400 mt-0.5">佔資金 1.72%</div>
+            </div>
+
+            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+              <div class="text-[11px] text-slate-400">可用保證金 & 預付款比例</div>
+              <div id="simFreeMargin" class="text-base font-bold font-mono text-emerald-400 mt-0.5">$9,827.75</div>
+              <div id="simMarginLevel" class="text-[11px] font-mono text-slate-300 mt-0.5">預付款比例 5,805%</div>
+            </div>
+
+            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+              <div class="text-[11px] text-slate-400">預估強制平倉價 (爆倉價)</div>
+              <div id="simLiqPrice" class="text-base font-bold font-mono text-amber-300 mt-0.5">1,896.65</div>
+              <div id="simBufferPoints" class="text-[11px] font-mono text-slate-400 mt-0.5">可抗逆向 753.35 點</div>
+            </div>
+
+            <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+              <div class="text-[11px] text-slate-400">止損 / 止盈預估損益 (R:R)</div>
+              <div class="text-xs font-mono mt-1 space-y-0.5">
+                <div class="flex justify-between">
+                  <span class="text-rose-400">止損:</span>
+                  <strong id="simSlPnl" class="text-rose-300">-$195.00</strong>
+                </div>
+                <div class="flex justify-between">
+                  <span class="text-emerald-400">止盈:</span>
+                  <strong id="simTpPnl" class="text-emerald-300">+$390.00</strong>
+                </div>
+                <div class="flex justify-between border-t border-slate-800 pt-0.5">
+                  <span class="text-slate-400">盈虧比:</span>
+                  <strong id="simRrRatio" class="text-sky-300">1 : 2.00</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Chart Visualization: Leverage Comparison Bar Chart -->
+          <div class="pt-1">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-medium text-slate-400">不同槓桿下最大可開手數 vs 安全建議手數視覺化</span>
+              <span class="text-[11px] text-slate-500">單位：標準手 (Lots)</span>
+            </div>
+            <div class="relative h-52 sm:h-56 w-full bg-slate-900/60 rounded-xl p-3 border border-slate-800/80">
+              <canvas id="leverageChart"></canvas>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Contract Size Visual Guide Section (Explains XAU / NAS / XAG Contract Sizes clearly) -->
+    <section id="contractGuideSection" class="mobile-section glass-card rounded-2xl p-4 sm:p-5 space-y-4 border border-sky-500/25">
+      <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-3">
+        <div>
+          <h2 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+            <span class="text-sky-400">📖</span>
+            <span>什麼是「每手合約規格 (Contract Size)」？（XAU / NAS / XAG 速查表）</span>
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">
+            在外匯與差價合約 (CFD) 中，我們下單輸入的單位叫「手 (Lot)」，而「<strong>每手合約規格</strong>」代表<strong>下單 1.00 標準手實際包含了多少數量的商品</strong>。
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5 text-xs">
+        <div class="bg-slate-900/80 p-3.5 rounded-xl border border-amber-500/30 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-sm text-amber-300">🥇 XAU/USD (黃金)</span>
+            <span class="font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 font-bold">標準 100 盎司</span>
+          </div>
+          <ul class="space-y-1 text-slate-300 leading-relaxed">
+            <li>• <strong>1.00 標準手</strong> = 100 盎司黃金</li>
+            <li>• <strong>0.10 手</strong> = 10 盎司｜<strong>0.01 手</strong> = 1 盎司</li>
+            <li>• <strong>每點損益</strong>：金價每跳動 <strong>$1.00</strong>（例如 2650 → 2651），1 標準手盈虧 <strong>$100 美金</strong>；0.01 手盈虧 <strong>$1 美金</strong>。</li>
+            <li>• <strong>1手保證金公式</strong>：<code class="text-amber-200 font-mono">(金價 × 100) ÷ 槓桿</code></li>
+          </ul>
+        </div>
+
+        <div class="bg-slate-900/80 p-3.5 rounded-xl border border-sky-500/30 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-sm text-sky-300">💻 NAS100 (那斯達克指數)</span>
+            <span class="font-mono px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 font-bold">常見 1 / 10 / 20</span>
+          </div>
+          <ul class="space-y-1 text-slate-300 leading-relaxed">
+            <li>• 指數 CFD 各家平台設定不同，最常見為：</li>
+            <li>• <strong>規格 = 1</strong>（多數外匯平台如 Exness/IC）：指數跳 1 點（20250 → 20251），1手盈虧 <strong>$1 美金</strong>。</li>
+            <li>• <strong>規格 = 10 或 20</strong>（部分CFD或CME NQ期貨）：指數跳 1 點，1手盈虧 <strong>$10 或 $20 美金</strong>。</li>
+            <li>• 可直接點擊上方「<strong>CFD 1倍 / 10倍 / NQ期貨</strong>」按鈕一鍵切換！</li>
+          </ul>
+        </div>
+
+        <div class="bg-slate-900/80 p-3.5 rounded-xl border border-slate-400/30 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-sm text-slate-200">🥈 XAG/USD (白銀)</span>
+            <span class="font-mono px-2 py-0.5 rounded bg-slate-500/30 text-slate-200 font-bold">標準 5,000 盎司</span>
+          </div>
+          <ul class="space-y-1 text-slate-300 leading-relaxed">
+            <li>• <strong>1.00 標準手</strong> = 5,000 盎司白銀（合約很大，新手請特別留意！）</li>
+            <li>• <strong>0.01 手</strong> = 50 盎司白銀</li>
+            <li>• <strong>每點損益</strong>：銀價每跳動 <strong>$1.00</strong>（31.50 → 32.50），1 標準手盈虧高達 <strong>$5,000 美金</strong>；0.01 手盈虧 <strong>$50 美金</strong>。</li>
+            <li>• <strong>1手保證金公式</strong>：<code class="text-slate-200 font-mono">(銀價 × 5000) ÷ 槓桿</code></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="bg-slate-950/80 rounded-xl p-3 border border-slate-800 text-xs text-slate-400 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+        <span>💡 <strong>如何在手機 MT4 / MT5 查看您的平台規格？</strong> 在行情列表長按商品（如 XAUUSD）→ 點擊「<strong>規格 (Specification)</strong>」→ 查看「<strong>合約大小 (Contract Size)</strong>」即可確認。</span>
+      </div>
+    </section>
+
+    <!-- Multi-Symbol Portfolio Basket Simulator (XAU + NAS + XAG combined margin test) -->
+    <section id="mobileTabBasket" class="mobile-section glass-card rounded-2xl p-4 sm:p-5 space-y-4">
+      <div class="flex flex-wrap items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <div>
+          <h2 class="text-sm font-bold text-white flex items-center gap-2">
+            <span>多標的混合持倉模擬器 (XAU + NAS + XAG 綜合保證金測試)</span>
+            <span id="portfolioCountBadge" class="px-2 py-0.5 rounded-full text-xs font-mono bg-sky-500/20 text-sky-300">0 筆持倉</span>
+          </h2>
+          <p class="text-xs text-slate-400 mt-0.5">同時持有黃金、那指、白銀時，檢視總已用保證金、剩餘可用資金與整體帳戶預付款比例</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="btnAddSampleBasket" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition">
+            載入範例三標的組合
+          </button>
+          <button id="btnClearBasket" type="button" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition">
+            清空籃子
+          </button>
+        </div>
+      </div>
+
+      <div id="portfolioEmptyState" class="text-center py-6 text-xs text-slate-400 bg-slate-900/40 rounded-xl border border-dashed border-slate-800">
+        目前尚無模擬持倉。可點擊上方「<strong class="text-sky-400">+ 加入多單模擬籃子</strong>」或「<strong class="text-slate-200">載入範例三標的組合</strong>」進行跨商品保證金試算。
+      </div>
+
+      <div id="portfolioContent" class="hidden space-y-4">
+        <div class="overflow-x-auto -mx-2 px-2">
+          <table class="w-full text-left border-collapse text-xs sm:text-sm min-w-[480px]">
+            <thead>
+              <tr class="border-b border-slate-800 text-slate-400 text-xs">
+                <th class="py-2 px-2.5">標的</th>
+                <th class="py-2 px-2.5">方向</th>
+                <th class="py-2 px-2.5">手數 (Lots)</th>
+                <th class="py-2 px-2.5">入場價</th>
+                <th class="py-2 px-2.5">合約規格</th>
+                <th class="py-2 px-2.5">佔用保證金</th>
+                <th class="py-2 px-2.5">止損預估損益</th>
+                <th class="py-2 px-2.5 text-right">操作</th>
+              </tr>
+            </thead>
+            <tbody id="portfolioTableBody" class="divide-y divide-slate-800/60 font-mono"></tbody>
+          </table>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3 pt-2 border-t border-slate-800">
+          <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+            <span class="text-[11px] text-slate-400">籃子總佔用保證金</span>
+            <div id="basketTotalMargin" class="text-base font-bold font-mono text-amber-300 mt-0.5">$0.00</div>
+          </div>
+          <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+            <span class="text-[11px] text-slate-400">籃子剩餘可用保證金</span>
+            <div id="basketFreeMargin" class="text-base font-bold font-mono text-emerald-400 mt-0.5">$10,000.00</div>
+          </div>
+          <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+            <span class="text-[11px] text-slate-400">綜合預付款比例 (Margin Level)</span>
+            <div id="basketMarginLevel" class="text-base font-bold font-mono text-white mt-0.5">--</div>
+          </div>
+          <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+            <span class="text-[11px] text-slate-400">全部觸發止損總風險</span>
+            <div id="basketTotalRisk" class="text-base font-bold font-mono text-rose-400 mt-0.5">$0.00</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Mobile Bottom App Navigation Bar (PWA Native Tab Experience on Phones) -->
+  <nav aria-label="手機版底部導覽列" class="lg:hidden fixed bottom-0 left-0 right-0 z-40 bg-slate-950/95 backdrop-blur-lg border-t border-slate-800 safe-bottom">
+    <div class="grid grid-cols-5 h-14">
+      <button type="button" data-mobile-nav="ALL" class="mobile-nav-btn flex flex-col items-center justify-center gap-0.5 text-amber-400 font-bold text-[11px]">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"/></svg>
+        <span>全頁總覽</span>
+      </button>
+      <button type="button" data-mobile-nav="CALC" class="mobile-nav-btn flex flex-col items-center justify-center gap-0.5 text-slate-400 font-medium text-[11px]">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"/></svg>
+        <span>倉位換算</span>
+      </button>
+      <button type="button" data-mobile-nav="RISK" class="mobile-nav-btn flex flex-col items-center justify-center gap-0.5 text-slate-400 font-medium text-[11px]">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        <span>風控強平</span>
+      </button>
+      <button type="button" data-mobile-nav="BASKET" class="mobile-nav-btn flex flex-col items-center justify-center gap-0.5 text-slate-400 font-medium text-[11px]">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+        <span>槓桿與籃子</span>
+      </button>
+      <button type="button" data-mobile-nav="GUIDE" class="mobile-nav-btn flex flex-col items-center justify-center gap-0.5 text-slate-400 font-medium text-[11px]">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+        <span>規格教學</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- Deployment & PWA Install Guide Modal -->
+  <div id="deployModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+    <div class="bg-slate-900 border border-slate-700 rounded-2xl max-w-2xl w-full p-5 sm:p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+        <h3 class="text-sm sm:text-base font-bold text-white flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span>
+          <span>📲 手機安裝為 PWA App 與免費公開網址教學</span>
+        </h3>
+        <button id="btnCloseDeployModal" type="button" class="text-slate-400 hover:text-white text-xs sm:text-sm px-2.5 py-1 rounded-lg bg-slate-800">
+          關閉 ✕
+        </button>
+      </div>
+
+      <div class="space-y-4 text-xs sm:text-sm text-slate-300 leading-relaxed">
+        <!-- Step 1: Install as PWA on iOS & Android -->
+        <div class="p-3.5 rounded-xl bg-slate-950/90 border border-amber-500/40 space-y-2">
+          <div class="font-bold text-amber-300">📱 第一步：在手機上變身原生全螢幕 App (PWA 模式)</div>
+          <p class="text-slate-300">
+            本網頁已內建完整 <strong>PWA (Progressive Web App)</strong> 標籤與全螢幕設定。將網址在手機打開後：
+          </p>
+          <ul class="space-y-1 text-slate-300">
+            <li>• <strong>iPhone (Safari)</strong>：點擊底部中間的「<strong>分享按鈕 (向上箭頭)</strong>」→ 往下滑點選「<strong>加入主畫面 (Add to Home Screen)</strong>」。從桌面圖示打開就會隱藏瀏覽器網址列，呈現 100% 原生 App 體驗！</li>
+            <li>• <strong>Android (Chrome)</strong>：點擊右上角「<strong>⋮ 選單</strong>」→ 點選「<strong>安裝應用程式</strong>」或「<strong>加到主畫面</strong>」。</li>
+          </ul>
+        </div>
+
+        <!-- Step 2: Free Public Hosting -->
+        <div class="p-3.5 rounded-xl bg-slate-950/90 border border-emerald-500/30 space-y-1.5">
+          <div class="font-bold text-emerald-300">🌐 第二步：30 秒免費取得公開網址（讓別人與手機隨時連線）</div>
+          <ol class="list-decimal list-inside space-y-1 text-slate-300">
+            <li>下載本網頁檔案（將檔名改為 <code class="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 font-mono">index.html</code>）。</li>
+            <li>前往免費靜態網站託管服務 <strong>app.netlify.com/drop</strong>、<strong>tiiny.host</strong> 或 <strong>pages.cloudflare.com</strong>。</li>
+            <li>將 <code class="px-1.5 py-0.5 rounded bg-slate-800 text-amber-300 font-mono">index.html</code> 直接拖曳上傳，即可立刻獲得一組公開 <code class="font-mono text-sky-300">https://xxxx.netlify.app</code> 網址！</li>
+          </ol>
+        </div>
+
+        <div class="p-3.5 rounded-xl bg-slate-950/90 border border-sky-500/30 space-y-1.5">
+          <div class="font-bold text-sky-300">🔗 多人同步分享小撇步</div>
+          <p class="text-slate-300">
+            當您調整好資金、槓桿（如 1:200）、標的（XAU/NAS/XAG）與止損價後，點擊上方「<strong>分享參數連結</strong>」，系統會自動把當前設定編碼進網址後面，傳給朋友或群組時，對方用手機打開就會直接看到您的試算結果！
+          </p>
+        </div>
+      </div>
+
+      <div class="flex justify-end pt-2 border-t border-slate-800">
+        <button id="btnConfirmDeployModal" type="button" class="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 transition">
+          我知道了
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="border-t border-slate-900 bg-slate-950 py-4 px-4 sm:px-6 text-center text-xs text-slate-500">
+    <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+      <span>外匯與差價合約 (CFD) / 期貨倉位計算工具 · 支援 XAU/USD、NAS100、XAG/USD</span>
+      <span>提示：各家交易商合約規格與強平比例可能略有差異，下單前請確認券商規格</span>
+    </div>
+  </footer>
+
+  <script>
+    // Instrument Default Configurations
+    const SYMBOL_CONFIGS = {
+      XAU: {
+        code: 'XAU',
+        name: 'XAU/USD (現貨黃金)',
+        shortName: 'XAU/USD',
+        defaultPrice: 2650.00,
+        defaultContractSize: 100,
+        defaultSlOffset: 15.00,
+        defaultTpOffset: 30.00,
+        priceStep: 1,
+        decimals: 2,
+        hint: '黃金 CFD 標準手為 100 盎司 (每手跳動 $1 = $100 USD；0.01手 = 1盎司，跳動 $1 = $1 USD)',
+        presets: [
+          { label: '標準手 (100 oz)', value: 100 },
+          { label: '迷你合約 (10 oz)', value: 10 },
+          { label: '微型黃金 (1 oz)', value: 1 }
+        ]
+      },
+      NAS: {
+        code: 'NAS',
+        name: 'NAS100 (那斯達克100指數)',
+        shortName: 'NAS100',
+        defaultPrice: 20250.00,
+        defaultContractSize: 1,
+        defaultSlOffset: 80.00,
+        defaultTpOffset: 160.00,
+        priceStep: 10,
+        decimals: 2,
+        hint: '那指 CFD 依券商常見規格有每手 1 ($1/點)、10 ($10/點)、20 (CME NQ期貨 $20/點) 或 2 (MNQ微型那指)',
+        presets: [
+          { label: 'CFD 1倍 ($1/點)', value: 1 },
+          { label: 'CFD 10倍 ($10/點)', value: 10 },
+          { label: 'NQ 期貨規格 ($20/點)', value: 20 },
+          { label: 'MNQ 微型那指 ($2/點)', value: 2 }
+        ]
+      },
+      XAG: {
+        code: 'XAG',
+        name: 'XAG/USD (現貨白銀)',
+        shortName: 'XAG/USD',
+        defaultPrice: 31.50,
+        defaultContractSize: 5000,
+        defaultSlOffset: 0.50,
+        defaultTpOffset: 1.00,
+        priceStep: 0.1,
+        decimals: 3,
+        hint: '白銀 CFD 標準手為 5,000 盎司 (每手跳動 $1 = $5,000 USD；0.01手跳動 $1 = $50 USD)',
+        presets: [
+          { label: '標準手 (5,000 oz)', value: 5000 },
+          { label: '迷你白銀 (1,000 oz)', value: 1000 },
+          { label: '微型白銀 (500 oz)', value: 500 }
+        ]
+      }
+    };
+
+    // Application State
+    const state = {
+      symbol: 'XAU',
+      capital: 10000,
+      leverage: 200,
+      entryPrice: 2650.00,
+      contractSize: 100,
+      safeMarginPct: 30,
+      direction: 'LONG',
+      riskPercent: 2.0,
+      riskAmount: 200.0,
+      stopLoss: 2635.00,
+      takeProfit: 2680.00,
+      plannedLots: 0.13,
+      stopOutLevel: 20,
+      mobileTab: 'ALL',
+      symbolMemory: {
+        XAU: { price: 2650.00, contractSize: 100, sl: 2635.00, tp: 2680.00 },
+        NAS: { price: 20250.00, contractSize: 1, sl: 20170.00, tp: 20410.00 },
+        XAG: { price: 31.50, contractSize: 5000, sl: 31.00, tp: 32.50 }
+      },
+      portfolio: []
+    };
+
+    let leverageChartInstance = null;
+
+    // Utility: Format Number / Currency
+    function fmtNum(val, decimals = 2) {
+      if (!isFinite(val) || isNaN(val)) return '0.00';
+      return Number(val).toLocaleString('en-US', {
+        minimumFractionDigits: decimals,
+        maximumFractionDigits: decimals
+      });
+    }
+
+    function fmtUsd(val, decimals = 2) {
+      if (!isFinite(val) || isNaN(val)) return '$0.00';
+      const sign = val < 0 ? '-' : '';
+      return sign + '$' + fmtNum(Math.abs(val), decimals);
+    }
+
+    // Toast notification helper
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      const bgClass = type === 'success'
+        ? 'bg-emerald-500 text-slate-950 border-emerald-400'
+        : 'bg-slate-800 text-white border-slate-600';
+      toast.className = `pointer-events-auto px-4 py-2.5 rounded-xl border shadow-xl text-xs font-bold text-center sm:text-left transition-all duration-300 ${bgClass}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => {
+        toast.style.opacity = '0';
+        setTimeout(() => toast.remove(), 300);
+      }, 2600);
+    }
+
+    // Copy text helper with fallback
+    function copyTextToClipboard(text, successMsg) {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          showToast(successMsg, 'success');
+        }).catch(() => {
+          fallbackCopy(text, successMsg);
+        });
+      } else {
+        fallbackCopy(text, successMsg);
+      }
+    }
+
+    function fallbackCopy(text, successMsg) {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+        showToast(successMsg, 'success');
+      } catch (e) {
+        showToast('複製失敗，請手動複製', 'info');
+      }
+      document.body.removeChild(ta);
+    }
+
+    // Load URL Query Params or LocalStorage
+    function loadInitialState() {
+      try {
+        const saved = localStorage.getItem('fx_calc_state_v1');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object') {
+            Object.assign(state, parsed);
+          }
+        }
+      } catch (e) {
+        // Ignore storage error in sandboxed iframe
+      }
+
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('sym') && SYMBOL_CONFIGS[params.get('sym')]) {
+        state.symbol = params.get('sym');
+      }
+      if (params.has('cap')) state.capital = Math.max(10, parseFloat(params.get('cap')) || 10000);
+      if (params.has('lev')) state.leverage = Math.max(1, parseFloat(params.get('lev')) || 200);
+      if (params.has('price')) state.entryPrice = Math.max(0.01, parseFloat(params.get('price')) || SYMBOL_CONFIGS[state.symbol].defaultPrice);
+      if (params.has('cs')) state.contractSize = Math.max(0.01, parseFloat(params.get('cs')) || SYMBOL_CONFIGS[state.symbol].defaultContractSize);
+      if (params.has('safe')) state.safeMarginPct = Math.min(100, Math.max(5, parseFloat(params.get('safe')) || 30));
+      if (params.has('dir')) state.direction = params.get('dir') === 'SHORT' ? 'SHORT' : 'LONG';
+      if (params.has('risk')) {
+        state.riskPercent = Math.max(0.1, parseFloat(params.get('risk')) || 2);
+        state.riskAmount = (state.capital * state.riskPercent) / 100;
+      }
+      if (params.has('sl')) state.stopLoss = parseFloat(params.get('sl')) || state.stopLoss;
+      if (params.has('tp')) state.takeProfit = parseFloat(params.get('tp')) || state.takeProfit;
+      if (params.has('lots')) state.plannedLots = Math.max(0.01, parseFloat(params.get('lots')) || 0.1);
+    }
+
+    function saveState() {
+      try {
+        localStorage.setItem('fx_calc_state_v1', JSON.stringify(state));
+      } catch (e) {
+        // Ignore storage restrictions
+      }
+    }
+
+    // Core Math Calculations
+    function calculateMetrics() {
+      const cap = Math.max(0, state.capital);
+      const lev = Math.max(1, state.leverage);
+      const price = Math.max(0.0001, state.entryPrice);
+      const cs = Math.max(0.0001, state.contractSize);
+      const safePct = state.safeMarginPct / 100;
+
+      const oneLotNotional = price * cs;
+      const marginPerOneLot = oneLotNotional / lev;
+      const marginPerMicroLot = marginPerOneLot * 0.01;
+
+      const rawMaxLotsFull = cap / marginPerOneLot;
+      const maxLotsFull = Math.floor(rawMaxLotsFull * 100) / 100;
+
+      const safeCap = cap * safePct;
+      const rawMaxLotsSafe = safeCap / marginPerOneLot;
+      const maxLotsSafe = Math.floor(rawMaxLotsSafe * 100) / 100;
+
+      const oneDollarMovePerLot = cs;
+
+      const slDist = Math.abs(price - state.stopLoss);
+      const tpDist = Math.abs(state.takeProfit - price);
+
+      const slLossPerLot = slDist * cs;
+      const rawRiskLots = slLossPerLot > 0 ? (state.riskAmount / slLossPerLot) : 0;
+      const riskRecommendedLots = Math.floor(rawRiskLots * 100) / 100;
+      const actualRiskLossAtRecLots = riskRecommendedLots * slLossPerLot;
+
+      const plannedLots = Math.max(0.01, state.plannedLots);
+      const simUsedMargin = plannedLots * marginPerOneLot;
+      const simFreeMargin = cap - simUsedMargin;
+      const simMarginLevel = simUsedMargin > 0 ? (cap / simUsedMargin) * 100 : 0;
+      const simMarginPctOfCap = cap > 0 ? (simUsedMargin / cap) * 100 : 0;
+
+      const stopOutRatio = state.stopOutLevel / 100;
+      const equityAtStopOut = simUsedMargin * stopOutRatio;
+      const maxAllowableDrawdown = Math.max(0, cap - equityAtStopOut);
+      const dollarPerPointPlanned = plannedLots * cs;
+      const bufferPoints = dollarPerPointPlanned > 0 ? (maxAllowableDrawdown / dollarPerPointPlanned) : 0;
+
+      let liqPrice = 0;
+      if (state.direction === 'LONG') {
+        liqPrice = Math.max(0, price - bufferPoints);
+      } else {
+        liqPrice = price + bufferPoints;
+      }
+
+      const simSlPnl = -(plannedLots * slDist * cs);
+      const simTpPnl = plannedLots * tpDist * cs;
+      const rrRatio = slDist > 0 ? (tpDist / slDist) : 0;
+
+      return {
+        cap,
+        lev,
+        price,
+        cs,
+        oneLotNotional,
+        marginPerOneLot,
+        marginPerMicroLot,
+        rawMaxLotsFull,
+        maxLotsFull,
+        rawMaxLotsSafe,
+        maxLotsSafe,
+        safeCap,
+        oneDollarMovePerLot,
+        slDist,
+        tpDist,
+        riskRecommendedLots,
+        rawRiskLots,
+        actualRiskLossAtRecLots,
+        plannedLots,
+        simUsedMargin,
+        simFreeMargin,
+        simMarginLevel,
+        simMarginPctOfCap,
+        liqPrice,
+        bufferPoints,
+        simSlPnl,
+        simTpPnl,
+        rrRatio
+      };
+    }
+
+    // Sync DOM inputs from State
+    function syncInputsFromState() {
+      document.getElementById('inputCapital').value = state.capital;
+      document.getElementById('inputCustomLeverage').value = state.leverage;
+      document.getElementById('inputEntryPrice').value = state.entryPrice;
+      document.getElementById('inputContractSize').value = state.contractSize;
+      document.getElementById('sliderMarginUsage').value = state.safeMarginPct;
+      document.getElementById('inputRiskPercent').value = state.riskPercent;
+      document.getElementById('inputRiskAmount').value = Number(state.riskAmount.toFixed(2));
+      document.getElementById('inputStopLoss').value = state.stopLoss;
+      document.getElementById('inputTakeProfit').value = state.takeProfit;
+      document.getElementById('inputPlannedLots').value = state.plannedLots;
+      document.getElementById('selectStopOutLevel').value = String(state.stopOutLevel);
+    }
+
+    // Render Contract Presets for current Symbol
+    function renderContractPresets() {
+      const cfg = SYMBOL_CONFIGS[state.symbol];
+      document.getElementById('labelSymbolPrice').textContent = cfg.shortName;
+      document.getElementById('contractPresetHint').textContent = cfg.hint;
+
+      const btnContainer = document.getElementById('contractPresetButtons');
+      btnContainer.innerHTML = '';
+      cfg.presets.forEach((p) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        const isActive = Math.abs(state.contractSize - p.value) < 0.001;
+        btn.className = isActive
+          ? 'px-2.5 py-1.5 rounded-lg text-xs font-bold bg-amber-500 text-slate-950 transition shadow-sm'
+          : 'px-2.5 py-1.5 rounded-lg text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition';
+        btn.textContent = p.label;
+        btn.addEventListener('click', () => {
+          state.contractSize = p.value;
+          state.symbolMemory[state.symbol].contractSize = p.value;
+          document.getElementById('inputContractSize').value = p.value;
+          renderAll();
+        });
+        btnContainer.appendChild(btn);
+      });
+    }
+
+    // Apply Mobile Tab Filtering (or show all)
+    function applyMobileTabVisibility() {
+      const isMobile = window.innerWidth < 1024;
+      const secMargin = document.getElementById('mobileTabMargin');
+      const secRisk = document.getElementById('mobileTabRisk');
+      const secOverview = document.getElementById('mobileTabOverviewCards');
+      const secCompare = document.getElementById('mobileTabCompare');
+      const secSimDiag = document.getElementById('mobileTabSimDiag');
+      const secGuide = document.getElementById('contractGuideSection');
+      const secBasket = document.getElementById('mobileTabBasket');
+
+      const allSecs = [secMargin, secRisk, secOverview, secCompare, secSimDiag, secGuide, secBasket];
+
+      if (!isMobile || state.mobileTab === 'ALL') {
+        allSecs.forEach((el) => el.classList.remove('hidden'));
+      } else if (state.mobileTab === 'CALC') {
+        allSecs.forEach((el) => el.classList.add('hidden'));
+        secMargin.classList.remove('hidden');
+        secOverview.classList.remove('hidden');
+        secCompare.classList.remove('hidden');
+      } else if (state.mobileTab === 'RISK') {
+        allSecs.forEach((el) => el.classList.add('hidden'));
+        secRisk.classList.remove('hidden');
+        secOverview.classList.remove('hidden');
+        secSimDiag.classList.remove('hidden');
+      } else if (state.mobileTab === 'BASKET') {
+        allSecs.forEach((el) => el.classList.add('hidden'));
+        secCompare.classList.remove('hidden');
+        secBasket.classList.remove('hidden');
+      } else if (state.mobileTab === 'GUIDE') {
+        allSecs.forEach((el) => el.classList.add('hidden'));
+        secGuide.classList.remove('hidden');
+        secMargin.classList.remove('hidden');
+      }
+
+      document.querySelectorAll('.mobile-nav-btn').forEach((btn) => {
+        const navKey = btn.getAttribute('data-mobile-nav');
+        if (navKey === state.mobileTab) {
+          btn.className = 'mobile-nav-btn flex flex-col items-center justify-center gap-0.5 text-amber-400 font-bold text-[11px] bg-amber-500/10';
+        } else {
+          btn.className = 'mobile-nav-btn flex flex-col items-center justify-center gap-0.5 text-slate-400 font-medium text-[11px]';
+        }
+      });
+    }
+
+    // Render All UI Elements
+    function renderAll() {
+      const cfg = SYMBOL_CONFIGS[state.symbol];
+      const m = calculateMetrics();
+
+      // Update Top Symbol Cards
+      document.querySelectorAll('.symbol-card').forEach((card) => {
+        const sym = card.getAttribute('data-symbol');
+        const badge = card.querySelector('.symbol-active-badge');
+        if (sym === state.symbol) {
+          card.className = 'symbol-card text-left p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border-2 border-amber-400 bg-slate-900/95 shadow-lg shadow-amber-500/10 transition-all relative overflow-hidden group';
+          badge.classList.remove('hidden');
+        } else {
+          card.className = 'symbol-card text-left p-2.5 sm:p-4 rounded-xl sm:rounded-2xl border border-slate-800 bg-slate-900/50 hover:bg-slate-900/80 hover:border-slate-700 transition-all relative overflow-hidden group';
+          badge.classList.add('hidden');
+        }
+      });
+
+      document.getElementById('cardPriceXAU').textContent = fmtNum(state.symbol === 'XAU' ? state.entryPrice : state.symbolMemory.XAU.price, 2);
+      document.getElementById('cardPriceNAS').textContent = fmtNum(state.symbol === 'NAS' ? state.entryPrice : state.symbolMemory.NAS.price, 2);
+      document.getElementById('cardPriceXAG').textContent = fmtNum(state.symbol === 'XAG' ? state.entryPrice : state.symbolMemory.XAG.price, 3);
+      const nasCs = state.symbol === 'NAS' ? state.contractSize : state.symbolMemory.NAS.contractSize;
+      document.getElementById('cardTickNAS').textContent = `$${fmtNum(nasCs, 0)}/手`;
+
+      // Update Leverage Buttons
+      document.querySelectorAll('.lev-btn').forEach((btn) => {
+        const lv = parseFloat(btn.getAttribute('data-lev'));
+        if (Math.abs(state.leverage - lv) < 0.01) {
+          btn.className = 'lev-btn py-3 px-3 rounded-xl font-mono text-sm font-bold border-2 border-amber-400 bg-amber-500/20 text-amber-300 shadow-sm transition';
+        } else {
+          btn.className = 'lev-btn py-3 px-3 rounded-xl font-mono text-sm font-bold border border-slate-700 bg-slate-900 hover:bg-slate-800 text-slate-300 transition';
+        }
+      });
+
+      const marginRatioPct = (100 / state.leverage).toFixed(2);
+      document.getElementById('labelLeverageRatio').textContent = `保證金比例 ${marginRatioPct}%`;
+      document.getElementById('contractValueFormula').textContent = `1手總值 = $${fmtNum(m.oneLotNotional, 0)}`;
+
+      // Update Direction Buttons
+      const btnLong = document.getElementById('btnDirLong');
+      const btnShort = document.getElementById('btnDirShort');
+      if (state.direction === 'LONG') {
+        btnLong.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-emerald-500 text-slate-950 transition';
+        btnShort.className = 'px-3 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition';
+      } else {
+        btnShort.className = 'px-3 py-1 rounded-lg text-xs font-bold bg-rose-500 text-slate-950 transition';
+        btnLong.className = 'px-3 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white transition';
+      }
+
+      renderContractPresets();
+
+      // Safe Margin Slider Label
+      document.getElementById('labelMarginUsage').textContent = `${state.safeMarginPct}% (${fmtUsd(m.safeCap, 0)})`;
+      document.getElementById('outSafePctLabel').textContent = `${state.safeMarginPct}%`;
+      document.getElementById('thSafePct').textContent = `${state.safeMarginPct}%`;
+
+      // SL & TP Distance Labels
+      document.getElementById('labelSlDistance').textContent = `距離 ${fmtNum(m.slDist, cfg.decimals)} 點`;
+      document.getElementById('labelTpDistance').textContent = `距離 ${fmtNum(m.tpDist, cfg.decimals)} 點`;
+
+      // Hero KPI Cards & Mobile Sticky HUD
+      const dispMaxFull = m.maxLotsFull >= 0.01 ? fmtNum(m.maxLotsFull, 2) : fmtNum(m.rawMaxLotsFull, 4);
+      const dispMaxSafe = m.maxLotsSafe >= 0.01 ? fmtNum(m.maxLotsSafe, 2) : fmtNum(m.rawMaxLotsSafe, 4);
+      const dispRiskLots = m.riskRecommendedLots >= 0.01 ? fmtNum(m.riskRecommendedLots, 2) : fmtNum(m.rawRiskLots, 4);
+
+      document.getElementById('badgeCurrentLeverage').textContent = `1:${state.leverage}`;
+      document.getElementById('outMaxLotsFull').textContent = dispMaxFull;
+      document.getElementById('outMaxNotional').textContent = fmtUsd(m.cap * state.leverage, 0);
+
+      document.getElementById('outMaxLotsSafe').textContent = dispMaxSafe;
+      document.getElementById('outReservedFreeMargin').textContent = fmtUsd(m.cap - m.safeCap, 2);
+
+      document.getElementById('badgeRiskPct').textContent = `風險 ${fmtNum(state.riskPercent, 1)}%`;
+      document.getElementById('outRiskRecommendedLots').textContent = dispRiskLots;
+      document.getElementById('outRiskLossAmt').textContent = fmtUsd(-m.actualRiskLossAtRecLots, 2);
+
+      // Update Mobile Sticky HUD
+      document.getElementById('hudLevLabel').textContent = `1:${state.leverage}`;
+      document.getElementById('hudMaxFull').textContent = `${dispMaxFull}手`;
+      document.getElementById('hudSafePct').textContent = `${state.safeMarginPct}%`;
+      document.getElementById('hudMaxSafe').textContent = `${dispMaxSafe}手`;
+      document.getElementById('hudRiskLots').textContent = `${dispRiskLots}手`;
+      document.getElementById('hudMargin1Lot').textContent = fmtUsd(m.marginPerOneLot, 0);
+
+      // Leverage Comparison Table (1:100, 1:200, 1:500 + custom if not in list)
+      document.getElementById('tableSymLabel').textContent = cfg.name;
+      document.getElementById('outOneLotNotional').textContent = fmtUsd(m.oneLotNotional, 2);
+      document.getElementById('outOneDollarMoveValue').textContent = `${fmtUsd(m.oneDollarMovePerLot, 2)} / 手`;
+
+      const standardLevs = [100, 200, 500];
+      if (!standardLevs.includes(Number(state.leverage))) {
+        standardLevs.push(Number(state.leverage));
+        standardLevs.sort((a, b) => a - b);
+      }
+
+      const tbody = document.getElementById('leverageComparisonBody');
+      tbody.innerHTML = '';
+      standardLevs.forEach((lv) => {
+        const isCurrent = Math.abs(lv - state.leverage) < 0.01;
+        const margin1Lot = m.oneLotNotional / lv;
+        const margin001Lot = margin1Lot * 0.01;
+        const maxFull = Math.floor((m.cap / margin1Lot) * 100) / 100;
+        const maxSafe = Math.floor(((m.cap * (state.safeMarginPct / 100)) / margin1Lot) * 100) / 100;
+
+        const tr = document.createElement('tr');
+        tr.className = isCurrent ? 'bg-amber-500/10 text-white' : 'hover:bg-slate-900/60 text-slate-300';
+        tr.innerHTML = `
+          <td class="py-2.5 px-2.5 font-bold ${isCurrent ? 'text-amber-300' : 'text-slate-200'}">
+            1 : ${lv}
+            ${isCurrent ? '<span class="ml-1 px-1.5 py-0.5 text-[10px] rounded bg-amber-400 text-slate-950 font-sans font-bold">目前</span>' : ''}
+          </td>
+          <td class="py-2.5 px-2.5">${fmtUsd(margin1Lot, 2)}</td>
+          <td class="py-2.5 px-2.5 text-slate-400">${fmtUsd(margin001Lot, 2)}</td>
+          <td class="py-2.5 px-2.5 font-bold text-white">${fmtNum(maxFull, 2)} 手</td>
+          <td class="py-2.5 px-2.5 font-bold text-emerald-400">${fmtNum(maxSafe, 2)} 手</td>
+          <td class="py-2.5 px-2.5 text-right">
+            <button type="button" data-switch-lev="${lv}" class="px-2.5 py-1 rounded-lg text-xs font-sans font-medium ${isCurrent ? 'bg-slate-800 text-slate-500 cursor-default' : 'bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-slate-200 border border-slate-700 transition'}">
+              ${isCurrent ? '使用中' : '套用'}
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      tbody.querySelectorAll('button[data-switch-lev]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const targetLv = parseFloat(btn.getAttribute('data-switch-lev'));
+          if (targetLv && targetLv !== state.leverage) {
+            state.leverage = targetLv;
+            document.getElementById('inputCustomLeverage').value = targetLv;
+            renderAll();
+          }
+        });
+      });
+
+      // Planned Position Diagnostics
+      document.getElementById('simUsedMargin').textContent = fmtUsd(m.simUsedMargin, 2);
+      document.getElementById('simMarginPctOfCap').textContent = `佔資金 ${fmtNum(m.simMarginPctOfCap, 2)}%`;
+      document.getElementById('simFreeMargin').textContent = fmtUsd(m.simFreeMargin, 2);
+      document.getElementById('simMarginLevel').textContent = m.simUsedMargin > 0 ? `預付款比例 ${fmtNum(m.simMarginLevel, 0)}%` : '預付款比例 --';
+      document.getElementById('simLiqPrice').textContent = fmtNum(m.liqPrice, cfg.decimals);
+      document.getElementById('simBufferPoints').textContent = `可抗逆向 ${fmtNum(m.bufferPoints, cfg.decimals)} 點`;
+      document.getElementById('simSlPnl').textContent = fmtUsd(m.simSlPnl, 2);
+      document.getElementById('simTpPnl').textContent = '+' + fmtUsd(m.simTpPnl, 2);
+      document.getElementById('simRrRatio').textContent = `1 : ${fmtNum(m.rrRatio, 2)}`;
+
+      // Status Badge
+      const healthBadge = document.getElementById('statusHealthBadge');
+      if (m.simUsedMargin > m.cap) {
+        healthBadge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40';
+        healthBadge.textContent = '保證金不足 (超出最大手數)';
+      } else if (m.simMarginPctOfCap > state.safeMarginPct) {
+        healthBadge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40';
+        healthBadge.textContent = '重倉警告 (超過安全上限)';
+      } else {
+        healthBadge.className = 'px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40';
+        healthBadge.textContent = '倉位健康 (符合安全水位)';
+      }
+
+      updateChart(standardLevs, m);
+      renderPortfolioBasket();
+      applyMobileTabVisibility();
+      saveState();
+    }
+
+    // Update Chart.js Bar Chart
+    function updateChart(leverages, m) {
+      const ctx = document.getElementById('leverageChart').getContext('2d');
+      const labels = leverages.map((lv) => `1:${lv}`);
+      const fullData = leverages.map((lv) => {
+        const margin1Lot = m.oneLotNotional / lv;
+        return Math.floor((m.cap / margin1Lot) * 100) / 100;
+      });
+      const safeData = leverages.map((lv) => {
+        const margin1Lot = m.oneLotNotional / lv;
+        return Math.floor(((m.cap * (state.safeMarginPct / 100)) / margin1Lot) * 100) / 100;
+      });
+
+      if (leverageChartInstance) {
+        leverageChartInstance.data.labels = labels;
+        leverageChartInstance.data.datasets[0].data = fullData;
+        leverageChartInstance.data.datasets[1].data = safeData;
+        leverageChartInstance.data.datasets[1].label = `安全建議上限 (${state.safeMarginPct}% 保證金)`;
+        leverageChartInstance.update();
+        return;
+      }
+
+      leverageChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            {
+              label: '滿倉極限手數 (100% 保證金)',
+              data: fullData,
+              backgroundColor: 'rgba(251, 191, 36, 0.75)',
+              borderColor: 'rgba(251, 191, 36, 1)',
+              borderWidth: 1,
+              borderRadius: 6
+            },
+            {
+              label: `安全建議上限 (${state.safeMarginPct}% 保證金)`,
+              data: safeData,
+              backgroundColor: 'rgba(52, 211, 153, 0.8)',
+              borderColor: 'rgba(52, 211, 153, 1)',
+              borderWidth: 1,
+              borderRadius: 6
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              labels: { color: '#cbd5e1', font: { size: 11 } }
+            }
+          },
+          scales: {
+            x: {
+              ticks: { color: '#94a3b8' },
+              grid: { color: 'rgba(148, 163, 184, 0.08)' }
+            },
+            y: {
+              beginAtZero: true,
+              ticks: { color: '#94a3b8' },
+              grid: { color: 'rgba(148, 163, 184, 0.12)' }
+            }
+          }
+        }
+      });
+    }
+
+    // Portfolio Basket Rendering
+    function renderPortfolioBasket() {
+      const emptyEl = document.getElementById('portfolioEmptyState');
+      const contentEl = document.getElementById('portfolioContent');
+      const countBadge = document.getElementById('portfolioCountBadge');
+      const tbody = document.getElementById('portfolioTableBody');
+
+      countBadge.textContent = `${state.portfolio.length} 筆持倉`;
+
+      if (state.portfolio.length === 0) {
+        emptyEl.classList.remove('hidden');
+        contentEl.classList.add('hidden');
+        return;
+      }
+
+      emptyEl.classList.add('hidden');
+      contentEl.classList.remove('hidden');
+      tbody.innerHTML = '';
+
+      let totalMargin = 0;
+      let totalRisk = 0;
+
+      state.portfolio.forEach((item) => {
+        const notional = item.price * item.contractSize * item.lots;
+        const margin = notional / state.leverage;
+        const slRisk = Math.abs(item.price - item.sl) * item.contractSize * item.lots;
+        totalMargin += margin;
+        totalRisk += slRisk;
+
+        const tr = document.createElement('tr');
+        tr.className = 'hover:bg-slate-900/50 text-slate-200';
+        tr.innerHTML = `
+          <td class="py-2.5 px-2.5 font-bold text-amber-300">${item.symbol}</td>
+          <td class="py-2.5 px-2.5">
+            <span class="px-2 py-0.5 rounded text-[11px] font-bold ${item.direction === 'LONG' ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}">
+              ${item.direction === 'LONG' ? '做多 Long' : '做空 Short'}
+            </span>
+          </td>
+          <td class="py-2.5 px-2.5 font-bold">${fmtNum(item.lots, 2)}</td>
+          <td class="py-2.5 px-2.5">${fmtNum(item.price, 2)}</td>
+          <td class="py-2.5 px-2.5 text-slate-400">${fmtNum(item.contractSize, 0)}</td>
+          <td class="py-2.5 px-2.5 text-amber-300">${fmtUsd(margin, 2)}</td>
+          <td class="py-2.5 px-2.5 text-rose-300">-${fmtUsd(slRisk, 2)}</td>
+          <td class="py-2.5 px-2.5 text-right">
+            <button type="button" data-remove-id="${item.id}" class="text-xs text-rose-400 hover:text-rose-300 px-2 py-1 rounded bg-slate-800">移除</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      tbody.querySelectorAll('button[data-remove-id]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const id = btn.getAttribute('data-remove-id');
+          state.portfolio = state.portfolio.filter((p) => String(p.id) !== String(id));
+          renderPortfolioBasket();
+          saveState();
+        });
+      });
+
+      const freeMargin = state.capital - totalMargin;
+      const marginLevel = totalMargin > 0 ? (state.capital / totalMargin) * 100 : 0;
+
+      document.getElementById('basketTotalMargin').textContent = fmtUsd(totalMargin, 2);
+      document.getElementById('basketFreeMargin').textContent = fmtUsd(freeMargin, 2);
+      document.getElementById('basketFreeMargin').className = `text-base font-bold font-mono mt-0.5 ${freeMargin >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+      document.getElementById('basketMarginLevel').textContent = totalMargin > 0 ? `${fmtNum(marginLevel, 1)}%` : '--';
+      document.getElementById('basketTotalRisk').textContent = `-${fmtUsd(totalRisk, 2)} (${fmtNum((totalRisk / state.capital) * 100, 1)}%)`;
+    }
+
+    // Switch Active Symbol
+    function switchSymbol(newSym) {
+      if (!SYMBOL_CONFIGS[newSym]) return;
+      state.symbolMemory[state.symbol] = {
+        price: state.entryPrice,
+        contractSize: state.contractSize,
+        sl: state.stopLoss,
+        tp: state.takeProfit
+      };
+
+      state.symbol = newSym;
+      const mem = state.symbolMemory[newSym];
+      state.entryPrice = mem.price;
+      state.contractSize = mem.contractSize;
+      state.stopLoss = mem.sl;
+      state.takeProfit = mem.tp;
+
+      syncInputsFromState();
+      const m = calculateMetrics();
+      state.plannedLots = m.riskRecommendedLots >= 0.01 ? m.riskRecommendedLots : 0.01;
+      document.getElementById('inputPlannedLots').value = state.plannedLots;
+      renderAll();
+    }
+
+    // Bind Event Listeners
+    function bindEvents() {
+      // Symbol Card Selection
+      document.querySelectorAll('.symbol-card').forEach((card) => {
+        card.addEventListener('click', () => {
+          const sym = card.getAttribute('data-symbol');
+          switchSymbol(sym);
+        });
+      });
+
+      // Mobile Bottom Navigation Bar
+      document.querySelectorAll('.mobile-nav-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          state.mobileTab = btn.getAttribute('data-mobile-nav') || 'ALL';
+          applyMobileTabVisibility();
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+      });
+
+      window.addEventListener('resize', () => {
+        applyMobileTabVisibility();
+      });
+
+      // Scroll to Contract Guide when clicking "❓ 合約規格說明" or "這是什麼？"
+      const scrollToContractGuide = () => {
+        state.mobileTab = 'ALL';
+        applyMobileTabVisibility();
+        const el = document.getElementById('contractGuideSection');
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('ring-2', 'ring-amber-400');
+          setTimeout(() => el.classList.remove('ring-2', 'ring-amber-400'), 2000);
+        }
+      };
+      document.getElementById('btnContractHelp').addEventListener('click', scrollToContractGuide);
+      document.getElementById('btnInlineContractInfo').addEventListener('click', scrollToContractGuide);
+
+      // Capital Presets, Steppers & Input
+      document.querySelectorAll('.cap-preset').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const cap = parseFloat(btn.getAttribute('data-cap'));
+          state.capital = cap;
+          state.riskAmount = (state.capital * state.riskPercent) / 100;
+          syncInputsFromState();
+          renderAll();
+        });
+      });
+
+      document.getElementById('btnCapMinus').addEventListener('click', () => {
+        const step = state.capital <= 1000 ? 100 : 500;
+        state.capital = Math.max(50, state.capital - step);
+        state.riskAmount = (state.capital * state.riskPercent) / 100;
+        syncInputsFromState();
+        renderAll();
+      });
+
+      document.getElementById('btnCapPlus').addEventListener('click', () => {
+        const step = state.capital < 1000 ? 100 : 500;
+        state.capital = state.capital + step;
+        state.riskAmount = (state.capital * state.riskPercent) / 100;
+        syncInputsFromState();
+        renderAll();
+      });
+
+      document.getElementById('inputCapital').addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        if (val > 0) {
+          state.capital = val;
+          state.riskAmount = (state.capital * state.riskPercent) / 100;
+          document.getElementById('inputRiskAmount').value = Number(state.riskAmount.toFixed(2));
+          renderAll();
+        }
+      });
+
+      // Leverage Preset Buttons, Quick High-Leverage Buttons & Custom Leverage Input
+      document.querySelectorAll('.lev-btn, .lev-quick').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const lv = parseFloat(btn.getAttribute('data-lev'));
+          state.leverage = lv;
+          document.getElementById('inputCustomLeverage').value = lv;
+          renderAll();
+        });
+      });
+
+      document.getElementById('inputCustomLeverage').addEventListener('input', (e) => {
+        const lv = parseFloat(e.target.value);
+        if (lv >= 1) {
+          state.leverage = lv;
+          renderAll();
+        }
+      });
+
+      // Entry Price Steppers & Input
+      document.getElementById('btnPriceMinus').addEventListener('click', () => {
+        const cfg = SYMBOL_CONFIGS[state.symbol];
+        state.entryPrice = Math.max(0.01, Number((state.entryPrice - cfg.priceStep).toFixed(cfg.decimals)));
+        state.symbolMemory[state.symbol].price = state.entryPrice;
+        syncInputsFromState();
+        renderAll();
+      });
+
+      document.getElementById('btnPricePlus').addEventListener('click', () => {
+        const cfg = SYMBOL_CONFIGS[state.symbol];
+        state.entryPrice = Number((state.entryPrice + cfg.priceStep).toFixed(cfg.decimals));
+        state.symbolMemory[state.symbol].price = state.entryPrice;
+        syncInputsFromState();
+        renderAll();
+      });
+
+      document.getElementById('inputEntryPrice').addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        if (val > 0) {
+          state.entryPrice = val;
+          state.symbolMemory[state.symbol].price = val;
+          renderAll();
+        }
+      });
+
+      document.getElementById('inputContractSize').addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        if (val > 0) {
+          state.contractSize = val;
+          state.symbolMemory[state.symbol].contractSize = val;
+          renderAll();
+        }
+      });
+
+      // Safe Margin Slider
+      document.getElementById('sliderMarginUsage').addEventListener('input', (e) => {
+        state.safeMarginPct = parseFloat(e.target.value);
+        renderAll();
+      });
+
+      // Direction Long / Short
+      document.getElementById('btnDirLong').addEventListener('click', () => {
+        state.direction = 'LONG';
+        const distSl = Math.abs(state.entryPrice - state.stopLoss);
+        const distTp = Math.abs(state.takeProfit - state.entryPrice);
+        state.stopLoss = Number((state.entryPrice - distSl).toFixed(3));
+        state.takeProfit = Number((state.entryPrice + distTp).toFixed(3));
+        syncInputsFromState();
+        renderAll();
+      });
+
+      document.getElementById('btnDirShort').addEventListener('click', () => {
+        state.direction = 'SHORT';
+        const distSl = Math.abs(state.entryPrice - state.stopLoss);
+        const distTp = Math.abs(state.takeProfit - state.entryPrice);
+        state.stopLoss = Number((state.entryPrice + distSl).toFixed(3));
+        state.takeProfit = Number((state.entryPrice - distTp).toFixed(3));
+        syncInputsFromState();
+        renderAll();
+      });
+
+      // Risk Presets, Risk %, Risk $
+      document.querySelectorAll('.risk-preset').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const rp = parseFloat(btn.getAttribute('data-risk'));
+          state.riskPercent = rp;
+          state.riskAmount = (state.capital * rp) / 100;
+          syncInputsFromState();
+          renderAll();
+        });
+      });
+
+      document.getElementById('inputRiskPercent').addEventListener('input', (e) => {
+        const rp = parseFloat(e.target.value);
+        if (rp > 0) {
+          state.riskPercent = rp;
+          state.riskAmount = (state.capital * rp) / 100;
+          document.getElementById('inputRiskAmount').value = Number(state.riskAmount.toFixed(2));
+          renderAll();
+        }
+      });
+
+      document.getElementById('inputRiskAmount').addEventListener('input', (e) => {
+        const ra = parseFloat(e.target.value);
+        if (ra >= 0) {
+          state.riskAmount = ra;
+          state.riskPercent = state.capital > 0 ? Number(((ra / state.capital) * 100).toFixed(2)) : 0;
+          document.getElementById('inputRiskPercent').value = state.riskPercent;
+          renderAll();
+        }
+      });
+
+      // Stop Loss & Take Profit Inputs
+      document.getElementById('inputStopLoss').addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        if (!isNaN(val)) {
+          state.stopLoss = val;
+          state.symbolMemory[state.symbol].sl = val;
+          renderAll();
+        }
+      });
+
+      document.getElementById('inputTakeProfit').addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        if (!isNaN(val)) {
+          state.takeProfit = val;
+          state.symbolMemory[state.symbol].tp = val;
+          renderAll();
+        }
+      });
+
+      // Planned Lots Steppers, Input & Apply Risk Lots
+      document.getElementById('btnLotsMinus').addEventListener('click', () => {
+        state.plannedLots = Math.max(0.01, Number((state.plannedLots - 0.01).toFixed(2)));
+        syncInputsFromState();
+        renderAll();
+      });
+
+      document.getElementById('btnLotsPlus').addEventListener('click', () => {
+        state.plannedLots = Number((state.plannedLots + 0.01).toFixed(2));
+        syncInputsFromState();
+        renderAll();
+      });
+
+      document.getElementById('inputPlannedLots').addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        if (val > 0) {
+          state.plannedLots = val;
+          renderAll();
+        }
+      });
+
+      document.getElementById('btnApplyRiskLots').addEventListener('click', () => {
+        const m = calculateMetrics();
+        state.plannedLots = m.riskRecommendedLots >= 0.01 ? m.riskRecommendedLots : 0.01;
+        document.getElementById('inputPlannedLots').value = state.plannedLots;
+        renderAll();
+        showToast(`已套用風控建議手數：${fmtNum(state.plannedLots, 2)} 手`, 'success');
+      });
+
+      // Stop-Out Level Select
+      document.getElementById('selectStopOutLevel').addEventListener('change', (e) => {
+        state.stopOutLevel = parseFloat(e.target.value);
+        renderAll();
+      });
+
+      // Reset Defaults
+      document.getElementById('btnResetDefaults').addEventListener('click', () => {
+        state.capital = 10000;
+        state.leverage = 200;
+        state.safeMarginPct = 30;
+        state.riskPercent = 2.0;
+        state.riskAmount = 200;
+        state.symbolMemory = {
+          XAU: { price: 2650.00, contractSize: 100, sl: 2635.00, tp: 2680.00 },
+          NAS: { price: 20250.00, contractSize: 1, sl: 20170.00, tp: 20410.00 },
+          XAG: { price: 31.50, contractSize: 5000, sl: 31.00, tp: 32.50 }
+        };
+        const mem = state.symbolMemory[state.symbol];
+        state.entryPrice = mem.price;
+        state.contractSize = mem.contractSize;
+        state.stopLoss = mem.sl;
+        state.takeProfit = mem.tp;
+        syncInputsFromState();
+        renderAll();
+        showToast('已恢復預設參數', 'info');
+      });
+
+      // Add to Portfolio Basket
+      document.getElementById('btnAddToPortfolio').addEventListener('click', () => {
+        state.portfolio.push({
+          id: Date.now() + Math.random(),
+          symbol: SYMBOL_CONFIGS[state.symbol].shortName,
+          direction: state.direction,
+          lots: state.plannedLots,
+          price: state.entryPrice,
+          contractSize: state.contractSize,
+          sl: state.stopLoss
+        });
+        renderPortfolioBasket();
+        saveState();
+        showToast(`已將 ${SYMBOL_CONFIGS[state.symbol].shortName} (${state.plannedLots}手) 加入模擬籃子`, 'success');
+      });
+
+      document.getElementById('btnAddSampleBasket').addEventListener('click', () => {
+        state.portfolio = [
+          { id: 's1', symbol: 'XAU/USD', direction: 'LONG', lots: 0.20, price: 2650.00, contractSize: 100, sl: 2635.00 },
+          { id: 's2', symbol: 'NAS100', direction: 'LONG', lots: 1.00, price: 20250.00, contractSize: 1, sl: 20150.00 },
+          { id: 's3', symbol: 'XAG/USD', direction: 'SHORT', lots: 0.10, price: 31.50, contractSize: 5000, sl: 32.00 }
+        ];
+        renderPortfolioBasket();
+        saveState();
+        showToast('已載入 XAU + NAS + XAG 三標的範例持倉組合', 'success');
+      });
+
+      document.getElementById('btnClearBasket').addEventListener('click', () => {
+        state.portfolio = [];
+        renderPortfolioBasket();
+        saveState();
+        showToast('已清空多單模擬籃子', 'info');
+      });
+
+      // Share URL with Query Params
+      document.getElementById('btnShareUrl').addEventListener('click', () => {
+        const params = new URLSearchParams({
+          sym: state.symbol,
+          cap: state.capital,
+          lev: state.leverage,
+          price: state.entryPrice,
+          cs: state.contractSize,
+          safe: state.safeMarginPct,
+          dir: state.direction,
+          risk: state.riskPercent,
+          sl: state.stopLoss,
+          tp: state.takeProfit,
+          lots: state.plannedLots
+        });
+        const baseUrl = window.location.origin && window.location.origin !== 'null'
+          ? window.location.origin + window.location.pathname
+          : 'https://your-domain.example.com/';
+        const shareUrl = `${baseUrl}?${params.toString()}`;
+        try {
+          window.history.replaceState({}, '', `?${params.toString()}`);
+        } catch (e) {
+          // Ignore in sandboxed iframe
+        }
+        copyTextToClipboard(shareUrl, '已複製專屬參數連結！分享給他人即可同步顯示此試算');
+      });
+
+      // Copy Formatted Trade Summary
+      document.getElementById('btnCopySummary').addEventListener('click', () => {
+        const cfg = SYMBOL_CONFIGS[state.symbol];
+        const m = calculateMetrics();
+        const summary = [
+          `📊 【${cfg.name} 倉位與風控計算單】`,
+          `• 帳戶資金：${fmtUsd(m.cap, 2)} | 槓桿：1:${state.leverage}`,
+          `• 入場報價：${fmtNum(m.price, cfg.decimals)} (合約規格：${m.cs}/手)`,
+          `• 單手保證金：${fmtUsd(m.marginPerOneLot, 2)} (0.01手：${fmtUsd(m.marginPerMicroLot, 2)})`,
+          `• 滿倉最大可開：${fmtNum(m.maxLotsFull, 2)} 手 | 安全上限(${state.safeMarginPct}%)：${fmtNum(m.maxLotsSafe, 2)} 手`,
+          `• 以損定倉建議(${state.riskPercent}% / ${fmtUsd(state.riskAmount, 0)})：${fmtNum(m.riskRecommendedLots, 2)} 手`,
+          `• 實測下單：${state.direction === 'LONG' ? '做多' : '做空'} ${fmtNum(m.plannedLots, 2)} 手 | 止損 ${fmtNum(state.stopLoss, cfg.decimals)} (${fmtUsd(m.simSlPnl, 2)}) | 止盈 ${fmtNum(state.takeProfit, cfg.decimals)} (+${fmtUsd(m.simTpPnl, 2)})`,
+          `• 預估強平價：${fmtNum(m.liqPrice, cfg.decimals)} (可抗 ${fmtNum(m.bufferPoints, cfg.decimals)} 點)`
+        ].join('\n');
+        copyTextToClipboard(summary, '已複製完整計算單摘要！可直接貼上至 Line / Telegram / Discord');
+      });
+
+      // Deployment Modal
+      const deployModal = document.getElementById('deployModal');
+      const openModal = () => {
+        deployModal.classList.remove('hidden');
+        deployModal.classList.add('flex');
+      };
+      const closeModal = () => {
+        deployModal.classList.add('hidden');
+        deployModal.classList.remove('flex');
+      };
+      document.getElementById('btnDeployModal').addEventListener('click', openModal);
+      document.getElementById('btnCloseDeployModal').addEventListener('click', closeModal);
+      document.getElementById('btnConfirmDeployModal').addEventListener('click', closeModal);
+      deployModal.addEventListener('click', (e) => {
+        if (e.target === deployModal) closeModal();
+      });
+    }
+
+    // Initialize App on Load
+    window.addEventListener('DOMContentLoaded', () => {
+      loadInitialState();
+      syncInputsFromState();
+      bindEvents();
+      renderAll();
+    });
+  </script>
+</body>
+</html>
